@@ -14,7 +14,10 @@ Change history:
 0.1.51 - Yves Mercier - initial version
 0.1.52 - Yves Mercier - added button and health capability
 0.1.59 - Yves Mercier - Change healthStatus handling
+0.1.60 - Kurt Sanders - added preference logging options and duration events calculated from timeStamp event 
 */
+
+import groovy.time.*
 
 metadata
 {
@@ -28,16 +31,54 @@ metadata
     {
         input name: "txtEnable", type: "bool", title: "Enable descriptionText logging", defaultValue: true
         input name: "pushRequired", type: "bool", title: "Enable pushed button event at the time reported", defaultValue: true
+        input ("logEnable", "bool", title: "Enable debug logging", defaultValue: true)
+        input ("txtEnable", "bool", title: "Enable description text logging", defaultValue: true)
     }
-    attribute "timestamp", "string"
-    attribute "date", "string"
-    attribute "healthStatus", "enum", ["offline", "online"]
+    attribute "timestamp"		, "string"
+    attribute "duration"		, "string"
+    attribute "durationMins"	, "number"
+    attribute "durationHrs"		, "number"
+    attribute "durationDays"	, "number"
+    attribute "durationSecs"	, "number"
+    attribute "date"			, "string"
+    attribute "healthStatus"	, "enum", ["offline", "online"]
+}
+
+def dateDuration(argDateUTC=null) {
+    if (argDateUTC==null) return 
+    Date endDate
+    Date startDate = new Date()
+        if (logEnable) log.debug("startDate= ${startDate}")
+	try {
+        endDate = Date.parse("yyyy-MM-dd'T'HH:mm:ssX", argDateUTC)
+        if (logEnable) log.debug("endDate=  ${endDate}")
+	} catch(Exception e) {
+        log.error "Error converting UTC date from Home Assistant: '${e}'"
+        return
+	}
+    use (TimeCategory) {
+        def duration = (endDate-startDate)        
+        if (logEnable) log.debug("duration= ${duration}")
+        sendEvent(name: 'duration'		, value: duration)
+        sendEvent(name: 'durationDays'	, value: duration.days)
+        sendEvent(name: 'durationHours'	, value: duration.hours)
+        sendEvent(name: 'durationMins'	, value: duration.minutes)
+        sendEvent(name: 'durationSecs'	, value: duration.seconds)
+	}
+}
+
+def logsOff(){
+    log.info("debug logging disabled...")
+    device.updateSetting("logEnable",[value:"false",type:"bool"])
 }
 
 void updated() {
     log.info "Updated..."
-    log.warn "description logging is ${txtEnable == true}, button event is ${pushRequired == true}"
     sendEvent(name: "numberOfButtons", value: 1, displayed: false)
+    log.info("debug logging is: ${logEnable == true}")
+    log.info("description logging is: ${txtEnable == true}")
+    unschedule()
+    if (logEnable) runIn(1800,logsOff)
 }
 
 void installed() {
@@ -48,11 +89,23 @@ void installed() {
     refresh()
 }
 
+def uninstalled() {
+    log.info("uninstalled...")
+    unschedule()
+}
+
 void parse(String description) { log.warn "parse(String description) not implemented" }
 
 void parse(List<Map> description) {
+    log.debug "==> HA description= ${description}"
     description.each {
         if (it.name in ["timestamp"]) {
+            if (txtEnable) log.info it.descriptionText
+            sendEvent(it)
+            dateDuration(it.value)
+            if (pushRequired) scheduleFutureBtnPush(it.value)
+        }
+        if (it.name in ["duration"]) {
             if (txtEnable) log.info it.descriptionText
             sendEvent(it)
             if (pushRequired) scheduleFutureBtnPush(it.value)
