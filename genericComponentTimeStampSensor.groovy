@@ -39,6 +39,7 @@ metadata
     attribute "totalTimeLeftSecs"	, "number"
     attribute "date"				, "string"
     attribute "healthStatus"		, "enum", ["offline", "online"]
+    
 }
 
 def dateDuration(argDateUTC=null) {
