@@ -34,14 +34,11 @@ metadata
         input ("logEnable", "bool", title: "Enable debug logging", defaultValue: true)
         input ("txtEnable", "bool", title: "Enable description text logging", defaultValue: true)
     }
-    attribute "timestamp"		, "string"
-    attribute "duration"		, "string"
-    attribute "durationMins"	, "number"
-    attribute "durationHrs"		, "number"
-    attribute "durationDays"	, "number"
-    attribute "durationSecs"	, "number"
-    attribute "date"			, "string"
-    attribute "healthStatus"	, "enum", ["offline", "online"]
+    attribute "timestamp"			, "string"
+    attribute "duration"			, "string"
+    attribute "totalTimeLeftSecs"	, "number"
+    attribute "date"				, "string"
+    attribute "healthStatus"		, "enum", ["offline", "online"]
 }
 
 def dateDuration(argDateUTC=null) {
@@ -53,17 +50,14 @@ def dateDuration(argDateUTC=null) {
         endDate = Date.parse("yyyy-MM-dd'T'HH:mm:ssX", argDateUTC)
         if (logEnable) log.debug("endDate=  ${endDate}")
 	} catch(Exception e) {
-        log.error "Error converting UTC date from Home Assistant: '${e}'"
+        log.error "Error converting expetced UTC date '${argDateUTC}'from Home Assistant: '${e}'"
         return
 	}
     use (TimeCategory) {
         def duration = (endDate-startDate)        
         if (logEnable) log.debug("duration= ${duration}")
-        sendEvent(name: 'duration'		, value: duration)
-        sendEvent(name: 'durationDays'	, value: duration.days)
-        sendEvent(name: 'durationHours'	, value: duration.hours)
-        sendEvent(name: 'durationMins'	, value: duration.minutes)
-        sendEvent(name: 'durationSecs'	, value: duration.seconds)
+        sendEvent(name: 'duration'			, value: duration)
+        sendEvent(name: 'totalTimeLeftSecs'	, value: (duration.days*24*3600 + duration.hours*3600 + duration.minutes*60 + duration.seconds))        
 	}
 }
 
@@ -97,7 +91,6 @@ def uninstalled() {
 void parse(String description) { log.warn "parse(String description) not implemented" }
 
 void parse(List<Map> description) {
-    log.debug "==> HA description= ${description}"
     description.each {
         if (it.name in ["timestamp"]) {
             if (txtEnable) log.info it.descriptionText
